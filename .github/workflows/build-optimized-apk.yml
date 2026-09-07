@@ -90,8 +90,6 @@ jobs:
             exit 1
           fi
 
-          NUVIO_SUPABASE_FALLBACK_URL=""
-
           {
             printf 'sdk.dir=%s\n' "${SDK_DIR}"
             printf 'NUVIO_SUPABASE_URL=%s\n' "${NUVIO_SUPABASE_URL}"
@@ -107,7 +105,9 @@ jobs:
           printf '%s' "${RELEASE_KEYSTORE_BASE64}" | base64 --decode > "${keystore_path}"
 
           printf '%s' "${RELEASE_PROPERTIES_BASE64}" | base64 --decode > release-signing.properties
-          sed -i -E '/^[[:space:]]*(sdk\.dir|NUVIO_RELEASE_STORE_FILE)[[:space:]]*=/d' release-signing.properties
+          # Signing properties must not be allowed to override the live
+          # authentication configuration discovered above.
+          sed -i -E '/^[[:space:]]*(sdk\.dir|NUVIO_RELEASE_STORE_FILE|NUVIO_SUPABASE_URL|NUVIO_SUPABASE_ANON_KEY|NUVIO_SUPABASE_FALLBACK_URL)[[:space:]]*=/d' release-signing.properties
           printf '\nNUVIO_RELEASE_STORE_FILE=%s\n' "${keystore_path}" >> release-signing.properties
           cat release-signing.properties >> local.properties
 
