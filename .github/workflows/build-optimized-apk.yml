@@ -56,9 +56,6 @@ jobs:
       - name: Prepare Android build configuration
         shell: bash
         env:
-          NUVIO_SUPABASE_URL_SECRET: ${{ secrets.NUVIO_SUPABASE_URL }}
-          NUVIO_SUPABASE_ANON_KEY_SECRET: ${{ secrets.NUVIO_SUPABASE_ANON_KEY }}
-          NUVIO_SUPABASE_FALLBACK_URL_SECRET: ${{ secrets.NUVIO_SUPABASE_FALLBACK_URL }}
           RELEASE_PROPERTIES_BASE64: ${{ secrets.NUVIO_LOCAL_PROPERTIES_BASE64 }}
           RELEASE_KEYSTORE_BASE64: ${{ secrets.NUVIO_RELEASE_KEYSTORE_BASE64 }}
         run: |
@@ -70,17 +67,35 @@ jobs:
             exit 1
           fi
 
-          NUVIO_SUPABASE_URL="${NUVIO_SUPABASE_URL_SECRET:-https://api.nuvio.tv}"
-          NUVIO_SUPABASE_ANON_KEY="${NUVIO_SUPABASE_ANON_KEY_SECRET:-sb_publishable_1Clq8rlTVACkdcZuqr6_AD__xUUC_EN}"
-          NUVIO_SUPABASE_FALLBACK_URL="${NUVIO_SUPABASE_FALLBACK_URL_SECRET:-}"
+          # Always use the live official Nuvio discovery document for the
+          # backend URL and public client key. This prevents an old GitHub
+          # secret or hard-coded fallback from producing an APK that can no
+          # longer authenticate after the official backend configuration changes.
+          DISCOVERY_URL="https://api.nuvio.tv/.well-known/nuvio"
+          discovery_json="$(curl --fail --silent --show-error --location --max-time 20 "${DISCOVERY_URL}")"
+          NUVIO_SUPABASE_URL="$(jq -er '.backend_url' <<<"${discovery_json}")"
+          NUVIO_SUPABASE_ANON_KEY="$(jq -er '.publishable_key' <<<"${discovery_json}")"
+          EMAIL_PASSWORD_AUTH="$(jq -er '.capabilities.email_password_auth' <<<"${discovery_json}")"
+
+          if [[ "${NUVIO_SUPABASE_URL%/}" != "https://api.nuvio.tv" ]]; then
+            echo "Official discovery returned an unexpected backend URL: ${NUVIO_SUPABASE_URL}" >&2
+            exit 1
+          fi
+          if [[ "${EMAIL_PASSWORD_AUTH}" != "true" ]]; then
+            echo "Official backend does not advertise email/password authentication." >&2
+            exit 1
+          fi
+          if [[ -z "${NUVIO_SUPABASE_ANON_KEY}" ]]; then
+            echo "Official discovery returned an empty publishable key." >&2
+            exit 1
+          fi
+
+          NUVIO_SUPABASE_FALLBACK_URL=""
 
           {
             printf 'sdk.dir=%s\n' "${SDK_DIR}"
             printf 'NUVIO_SUPABASE_URL=%s\n' "${NUVIO_SUPABASE_URL}"
             printf 'NUVIO_SUPABASE_ANON_KEY=%s\n' "${NUVIO_SUPABASE_ANON_KEY}"
-            if [[ -n "${NUVIO_SUPABASE_FALLBACK_URL}" ]]; then
-              printf 'NUVIO_SUPABASE_FALLBACK_URL=%s\n' "${NUVIO_SUPABASE_FALLBACK_URL}"
-            fi
           } > local.properties
 
           if [[ -z "${RELEASE_PROPERTIES_BASE64}" || -z "${RELEASE_KEYSTORE_BASE64}" ]]; then
