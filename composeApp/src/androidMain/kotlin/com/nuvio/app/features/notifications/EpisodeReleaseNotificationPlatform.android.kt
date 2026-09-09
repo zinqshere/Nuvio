@@ -18,8 +18,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
-import com.nuvio.app.features.settings.AppIconPlatform
 import com.nuvio.app.core.storage.ProfileScopedKey
+import com.nuvio.app.features.settings.AppIconPlatform
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
@@ -29,6 +29,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 import java.time.LocalDate
@@ -88,10 +91,10 @@ internal actual object EpisodeReleaseNotificationPlatform {
 
     actual suspend fun notificationsAuthorized(): Boolean {
         val context = appContext ?: return false
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                return false
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return false
         }
         return NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
@@ -134,17 +137,19 @@ internal actual object EpisodeReleaseNotificationPlatform {
                 if (triggerAtEpochMs <= nowEpochMs) return@forEach
 
                 val pendingIntent = buildBroadcastPendingIntent(context, request)
-                val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerAtEpochMs, pendingIntent)
                 runCatching {
-                    alarmManager.setAlarmClock(alarmClockInfo, pendingIntent)
-                    scheduledIds += request.requestId
-                }.onFailure { error ->
-                    val scheduledIntent = buildBroadcastPendingIntent(context, request)
-                    runCatching {
-                        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtEpochMs, scheduledIntent)
-                        scheduledIds += request.requestId
-                    }
+                    alarmManager.setAlarmClock(
+                        AlarmManager.AlarmClockInfo(triggerAtEpochMs, pendingIntent),
+                        pendingIntent,
+                    )
+                }.getOrElse {
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAtEpochMs,
+                        pendingIntent,
+                    )
                 }
+                scheduledIds += request.requestId
             }
 
             preferences(context)
@@ -169,7 +174,7 @@ internal actual object EpisodeReleaseNotificationPlatform {
         val context = appContext ?: return
         ensureNotificationChannel()
         NotificationManagerCompat.from(context).notify(
-            kotlin.math.abs(request.requestId.hashCode()),
+            kotlin.math.abs(request.requestId.hashCode()).coerceAtLeast(1),
             buildNotification(context, request),
         )
     }
@@ -178,7 +183,7 @@ internal actual object EpisodeReleaseNotificationPlatform {
         context: Context,
         request: EpisodeReleaseNotificationRequest,
     ): android.app.Notification {
-        val pendingIntent = buildPendingIntent(context, request)
+        val pendingIntent = buildContentPendingIntent(context, request)
         val backdropBitmap = loadBackdropBitmap(request.backdropUrl)
         val appIconBitmap = ContextCompat.getDrawable(
             context,
@@ -212,7 +217,7 @@ internal actual object EpisodeReleaseNotificationPlatform {
         }.getOrNull()
     }
 
-    private fun buildPendingIntent(
+    private fun buildContentPendingIntent(
         context: Context,
         request: EpisodeReleaseNotificationRequest,
     ): PendingIntent {
@@ -316,7 +321,7 @@ internal class EpisodeReleaseNotificationReceiver : BroadcastReceiver() {
         val backdropUrl = intent.getStringExtra(EpisodeReleaseNotificationPlatform.receiverBackdropUrlKey)
 
         val pendingResult = goAsync()
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Default).launch {
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
                 if (!EpisodeReleaseNotificationPlatform.notificationsAuthorized()) return@launch
                 val request = EpisodeReleaseNotificationRequest(
@@ -329,7 +334,7 @@ internal class EpisodeReleaseNotificationReceiver : BroadcastReceiver() {
                 )
                 val notification = EpisodeReleaseNotificationPlatform.buildNotification(context.applicationContext, request)
                 NotificationManagerCompat.from(context.applicationContext)
-                    .notify(kotlin.math.abs(requestId.hashCode()), notification)
+                    .notify(kotlin.math.abs(requestId.hashCode()).coerceAtLeast(1), notification)
             } finally {
                 pendingResult.finish()
             }

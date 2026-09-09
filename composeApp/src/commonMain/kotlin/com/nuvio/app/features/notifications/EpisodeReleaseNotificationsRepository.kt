@@ -35,7 +35,6 @@ import kotlinx.serialization.json.Json
 
 object EpisodeReleaseNotificationsRepository {
     private const val metadataFetchConcurrency = 4
-    private const val testNotificationDelaySeconds = 1L
 
     private val log = Logger.withTag("EpisodeReleaseNotifications")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
