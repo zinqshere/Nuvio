@@ -89,20 +89,16 @@ internal fun PosterGridSkeletonRow(
     modifier: Modifier = Modifier,
 ) {
     val posterCardStyle = rememberPosterCardStyleUiState()
-    val skeletonShape = remember(posterCardStyle.cornerRadiusDp) {
-        RoundedCornerShape(posterCardStyle.cornerRadiusDp.dp)
-    }
 
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         repeat(columns) {
-SkeletonPoster(
-                    modifier = Modifier.weight(1f),
-                    cornerRadius = posterCardStyle.cornerRadiusDp.dp,
-                    showLabels = posterCardStyle.isLabelEnabled,
-                )
+            SkeletonPoster(
+                modifier = Modifier.weight(1f),
+                cornerRadius = posterCardStyle.cornerRadiusDp.dp,
+                showLabels = !posterCardStyle.hideLabelsEnabled,
             )
         }
     }
