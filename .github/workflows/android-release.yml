@@ -36,7 +36,6 @@ jobs:
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
-      release_commit: ${{ steps.release.outputs.release_commit }}
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_PROPERTIES_BASE64: ${{ secrets.NUVIO_LOCAL_PROPERTIES_BASE64 }}
@@ -239,7 +238,7 @@ jobs:
     if: inputs.mode != 'dry-run' && inputs.build_ios
     needs: prepare
     runs-on: macos-26
-    timeout-minutes: 75
+    timeout-minutes: 120
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       GRADLE_OPTS: -Dfile.encoding=UTF-8
@@ -351,7 +350,7 @@ jobs:
       RELEASE_MODE: ${{ inputs.mode }}
       RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
       RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-      RELEASE_COMMIT: ${{ needs.prepare.outputs.release_commit }}
+      RELEASE_BRANCH: ${{ github.ref_name }}
 
     steps:
       - name: Download release artifacts
@@ -371,7 +370,7 @@ jobs:
           release_args=(
             "${RELEASE_TAG}"
             --repo "${GITHUB_REPOSITORY}"
-            --target "${RELEASE_COMMIT}"
+            --target "${RELEASE_BRANCH}"
             --title "${RELEASE_VERSION}"
             --notes-file release-assets/release-notes.md
           )

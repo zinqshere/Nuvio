@@ -103,6 +103,10 @@ fun HomeHeroSection(
     val coroutineScope = rememberCoroutineScope()
     val autoScrollPage = pagerState.currentPage
 
+    LaunchedEffect(pagerState) {
+        pagerState.scrollToPage(pagerState.currentPage)
+    }
+
     LaunchedEffect(autoScrollPage, items.size) {
         if (items.size <= 1) return@LaunchedEffect
         delay(HERO_AUTO_SCROLL_INTERVAL_MS)
@@ -142,8 +146,6 @@ fun HomeHeroSection(
                 }
             }
         }
-        val heroScrollScale = heroBackgroundScrollScale(scrollOffsetPx)
-        val heroScrollTranslationY = heroBackgroundScrollTranslationY(scrollOffsetPx)
         val currentPage = pagerState.currentPage.coerceIn(items.indices)
         val visiblePages = listOf(
             currentPage,
@@ -201,11 +203,13 @@ fun HomeHeroSection(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .graphicsLayer {
+                                    val offset = scrollOffsetPx
+                                    val scrollScale = heroBackgroundScrollScale(offset)
                                     alpha = layer.visibility
                                     translationX = -layer.offset * heroWidthPx * HERO_BACKGROUND_PARALLAX
-                                    translationY = heroScrollTranslationY
-                                    scaleX = HERO_BACKGROUND_SCALE * heroScrollScale
-                                    scaleY = HERO_BACKGROUND_SCALE * heroScrollScale
+                                    translationY = heroBackgroundScrollTranslationY(offset)
+                                    scaleX = HERO_BACKGROUND_SCALE * scrollScale
+                                    scaleY = HERO_BACKGROUND_SCALE * scrollScale
                                 },
                             alignment = if (layout.isTablet) Alignment.TopCenter else Alignment.Center,
                             contentScale = ContentScale.Crop,
@@ -514,7 +518,11 @@ private fun mobileHeroHeight(
 ): Dp {
     val viewportDrivenHeight = viewportHeightDp?.let { (it * MOBILE_HERO_VIEWPORT_RATIO).dp }
     val widthFallbackHeight = (maxWidthDp * 1.16f).dp
-    val baseHeight = viewportDrivenHeight ?: widthFallbackHeight
+    val baseHeight = if (mobileBelowSectionHeightHintDp == null) {
+        viewportDrivenHeight?.coerceAtMost(widthFallbackHeight) ?: widthFallbackHeight
+    } else {
+        viewportDrivenHeight ?: widthFallbackHeight
+    }
 
     val maxAllowedFromViewportDp = if (viewportHeightDp != null && mobileBelowSectionHeightHintDp != null) {
         viewportHeightDp - mobileBelowSectionHeightHintDp

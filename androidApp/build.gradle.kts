@@ -69,6 +69,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = releaseAppVersionCode
         versionName = releaseAppVersionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     flavorDimensions += "distribution"
@@ -102,6 +103,10 @@ android {
         }
     }
 
+    androidResources {
+        noCompress += "cvr"
+    }
+
     splits {
         abi {
             isEnable = buildsReleaseApks
@@ -113,8 +118,11 @@ android {
 
     buildTypes {
         getByName("release") {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            val minifyRelease = providers.gradleProperty("releaseMinifyEnabled")
+                .map(String::toBooleanStrict)
+                .getOrElse(true)
+            isMinifyEnabled = minifyRelease
+            isShrinkResources = minifyRelease
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "../composeApp/proguard-rules.pro",
@@ -166,4 +174,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     debugImplementation(libs.compose.uiTooling)
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test:core:1.7.0")
+    androidTestImplementation(libs.androidx.testExt.junit)
 }

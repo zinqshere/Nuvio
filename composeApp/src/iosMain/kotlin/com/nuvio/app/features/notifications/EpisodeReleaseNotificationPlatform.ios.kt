@@ -19,15 +19,15 @@ import platform.Foundation.NSUserDefaults
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.timeIntervalSince1970
-import platform.UserNotifications.UNNotificationAttachment
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionBadge
 import platform.UserNotifications.UNAuthorizationOptionSound
 import platform.UserNotifications.UNAuthorizationStatusAuthorized
 import platform.UserNotifications.UNAuthorizationStatusProvisional
-import platform.UserNotifications.UNCalendarNotificationTrigger
 import platform.UserNotifications.UNMutableNotificationContent
+import platform.UserNotifications.UNNotificationAttachment
 import platform.UserNotifications.UNNotificationRequest
+import platform.UserNotifications.UNCalendarNotificationTrigger
 import platform.UserNotifications.UNTimeIntervalNotificationTrigger
 import platform.UserNotifications.UNUserNotificationCenter
 import platform.posix.fclose
@@ -85,7 +85,11 @@ internal actual object EpisodeReleaseNotificationPlatform {
                 content = content,
                 trigger = trigger,
             )
-            center.addNotificationRequest(notificationRequest) { _ -> }
+            center.addNotificationRequest(notificationRequest) { error ->
+                if (error != null) {
+                    println("[EpisodeReleaseNotifications] Failed to schedule ${request.requestId}: ${error.localizedDescription}")
+                }
+            }
             scheduledIds += request.requestId
         }
 
@@ -115,7 +119,11 @@ internal actual object EpisodeReleaseNotificationPlatform {
             content = content,
             trigger = trigger,
         )
-        UNUserNotificationCenter.currentNotificationCenter().addNotificationRequest(notificationRequest) { _ -> }
+        UNUserNotificationCenter.currentNotificationCenter().addNotificationRequest(notificationRequest) { error ->
+            if (error != null) {
+                println("[EpisodeReleaseNotifications] Failed to schedule test notification: ${error.localizedDescription}")
+            }
+        }
     }
 
     private fun trackedScheduledIds(): List<String> =
